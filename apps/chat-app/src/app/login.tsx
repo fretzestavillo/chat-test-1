@@ -17,7 +17,6 @@ import { firebaseConfig } from './config';
 
 export function Login() {
   const app = initializeApp(firebaseConfig);
-  console.log(app);
   const auth = getAuth(app);
   const navigate = useNavigate();
 
