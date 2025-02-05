@@ -1,33 +1,9 @@
 import { initializeApp } from 'firebase/app';
-import {
-  Avatar,
-  Box,
-  Button,
-  CircularProgress,
-  Container,
-  Stack,
-  Typography,
-} from '@mui/material';
-import {
-  getAuth,
-  GoogleAuthProvider,
-  signInWithPopup,
-  signOut,
-} from 'firebase/auth';
+import { Box, Button, Container, Typography } from '@mui/material';
+import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { firebaseConfig } from './config';
-import {
-  getFirestore,
-  collection,
-  getDocs,
-  addDoc,
-  where,
-  query,
-  doc,
-  onSnapshot,
-  getDoc,
-  setDoc,
-} from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 import { UserDetails } from './types';
 
 export function Login() {

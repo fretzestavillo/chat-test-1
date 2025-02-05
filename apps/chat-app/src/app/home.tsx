@@ -2,18 +2,26 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { firebaseConfig } from './config';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signOut } from 'firebase/auth';
-
 import {
   getFirestore,
   collection,
-  getDocs,
   addDoc,
   onSnapshot,
+  doc,
+  getDoc,
+  serverTimestamp,
 } from 'firebase/firestore';
-import { Avatar, Button, Stack, TextField, Box, Grid2 } from '@mui/material';
-
-import { Message, UserDetails, UserDetails2 } from './types';
-import { useEffect, useState } from 'react';
+import {
+  Avatar,
+  Button,
+  Stack,
+  TextField,
+  Box,
+  IconButton,
+} from '@mui/material';
+import SendIcon from '@mui/icons-material/Send';
+import { Messages, UserDetails2 } from './types';
+import { useEffect, useRef, useState } from 'react';
 
 export function Home() {
   const navigate = useNavigate();
@@ -24,12 +32,13 @@ export function Home() {
   const db = getFirestore(app);
 
   const [usersList, setUsersList] = useState<UserDetails2[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState<string>('');
-  const [selectedUser, setSelectedUser] = useState<string | null>(null);
-  const [isHidden, setHidden] = useState(true);
+  const [message, setMessage] = useState('');
+  const [selectedUserId, setSelectedUser] = useState<string | null>(null);
+  const [senderId, setSenderID] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Messages[]>([]); // State to store messages
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  const userDetails = {
+  const senderDetails = {
     uid: location.state.fireBaseData.uid,
     email: location.state.fireBaseData.email,
     displayName: location.state.fireBaseData.displayName,
@@ -48,21 +57,56 @@ export function Home() {
   }
 
   useEffect(() => {
-    // Reference to the "users" collection
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  useEffect(() => {
+    if (!selectedUserId || !senderId) return;
+
+    const chatId = [senderDetails.uid, selectedUserId].sort().join('_');
+
+    const messagesRef = collection(db, 'messages', chatId, 'messages');
+
+    const unsubscribe = onSnapshot(
+      messagesRef,
+      (querySnapshot) => {
+        const messages: Messages[] = [];
+
+        querySnapshot.forEach((doc) => {
+          messages.push(doc.data() as Messages);
+        });
+
+        messages.sort((a, b) => {
+          // Ensure both timestamps exist before calling `toDate()`
+          if (!a.timestamp || !b.timestamp) return 0;
+
+          return (
+            a.timestamp.toDate().getTime() - b.timestamp.toDate().getTime()
+          );
+        });
+
+        setMessages(messages);
+      },
+      (error) => {
+        console.error('Error listening to Firestore changes:', error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [selectedUserId, senderId]);
+
+  useEffect(() => {
     const usersRef = collection(db, 'users');
 
-    // Listen to changes in the "users" collection
     const unsubscribe = onSnapshot(
       usersRef,
       (querySnapshot) => {
         const users: UserDetails2[] = [];
 
         querySnapshot.forEach((doc) => {
-          // Push each user's data into the users array
           users.push(doc.data() as UserDetails2);
         });
 
-        // Update state with the real-time users data
         setUsersList(users);
       },
       (error) => {
@@ -70,31 +114,48 @@ export function Home() {
       }
     );
 
-    // Cleanup on component unmount to stop listening
     return () => unsubscribe();
   }, []);
 
-  const handleSendMessage = () => {
-    if (newMessage.trim() && selectedUser) {
-      const newMsg: Message = {
-        sender: 'You', // Replace with dynamic user info if needed
-        content: newMessage,
-        timestamp: new Date().toLocaleTimeString(),
-      };
-      setMessages([...messages, newMsg]);
-      setNewMessage('');
-    }
-  };
+  function changeState(userId: any) {
+    setSelectedUser(userId);
+    setSenderID(senderDetails.uid);
+  }
 
-  function changeState(user: any) {
-    setSelectedUser(user);
-    setHidden(false);
+  function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
+    setMessage(event.target.value);
+  }
+
+  async function sendMessage(id: string) {
+    const userDocRef = doc(db, 'users', id);
+    const docs = await getDoc(userDocRef);
+    const recepientData = docs.data();
+
+    const receiver = recepientData?.uid;
+    const sender = senderDetails.uid;
+
+    const chatId = [sender, receiver].sort().join('_');
+
+    const chatRef = doc(db, 'messages', chatId);
+
+    const firstMessageObject = {
+      email: senderDetails.email,
+      displayName: senderDetails.displayName,
+      photo: senderDetails.photo,
+      token: senderDetails.token,
+      text: message,
+      timestamp: serverTimestamp(),
+      uid: senderDetails.uid,
+    };
+
+    await addDoc(collection(chatRef, 'messages'), firstMessageObject);
+    setMessage('');
   }
 
   return (
     <>
       <h1>
-        Welcome to chat app {userDetails.email}
+        Welcome to chat app {senderDetails.email}
         <Button
           sx={{
             position: 'absolute',
@@ -108,17 +169,15 @@ export function Home() {
           Sign out
         </Button>
       </h1>
-
       <Box
         sx={{
           display: 'flex',
           height: '500px',
         }}
       >
-        {/* Users List on the left */}
         <Box
           sx={{
-            width: '25%', // 3/12 of the container
+            width: '25%',
             borderRight: '1px solid #ccc',
             padding: 2,
             overflowY: 'auto',
@@ -129,7 +188,7 @@ export function Home() {
             usersList.map((user) => (
               <div
                 style={{ cursor: 'pointer', marginBottom: '10px' }}
-                onClick={() => changeState(user.email)}
+                onClick={() => changeState(user.uid)}
                 key={user.uid}
               >
                 <Stack direction="row" spacing={2} alignItems="center">
@@ -142,11 +201,11 @@ export function Home() {
             <p>No users found.</p>
           )}
         </Box>
+        {/* right component */}
 
-        {/* Messenger UI on the right */}
         <Box
           sx={{
-            flexGrow: 1, // Takes up the remaining space (9/12 of the container)
+            flexGrow: 1,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
@@ -154,53 +213,90 @@ export function Home() {
             borderRadius: 2,
           }}
         >
-          {selectedUser ? (
+          {selectedUserId ? (
             <>
-              <h2>Chat with {selectedUser}</h2>
-              {/* Messages list */}
-              <Box sx={{ overflowY: 'auto', flexGrow: 1, marginBottom: 2 }}>
-                {messages.map((msg, index) => (
-                  <Box
-                    key={index}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      marginBottom: 1,
-                      padding: 1,
-                      borderRadius: 1,
-                      backgroundColor:
-                        msg.sender === 'You' ? '#f0f0f0' : '#e0f7fa',
-                    }}
-                  >
-                    <Avatar sx={{ marginRight: 1 }} />
-                    <Stack>
-                      <span style={{ fontWeight: 'bold' }}>{msg.sender}</span>
-                      <span>{msg.content}</span>
-                      <span style={{ fontSize: '0.8rem', color: '#888' }}>
-                        {msg.timestamp}
-                      </span>
+              <h2>Chat with {selectedUserId}</h2>
+              <Box
+                sx={{
+                  overflowY: 'auto',
+                  flexGrow: 1,
+                  marginBottom: 2,
+                  display: 'flex',
+                  flexDirection: 'column', // Ensure messages are stacked top to bottom
+                }}
+              >
+                {messages.length > 0 ? (
+                  [...messages].map((message, index) => (
+                    <Stack
+                      key={`${message.uid}_${index}`}
+                      direction="row"
+                      spacing={2}
+                      alignItems="center"
+                      sx={{
+                        justifyContent:
+                          message.uid === senderDetails.uid
+                            ? 'flex-end'
+                            : 'flex-start',
+                        textAlign:
+                          message.uid === senderDetails.uid ? 'right' : 'left',
+                      }}
+                    >
+                      {message.uid !== senderDetails.uid && (
+                        <Avatar src={message.photo} />
+                      )}
+                      <Box
+                        sx={{
+                          p: 1.5,
+                          borderRadius: 2,
+                          bgcolor:
+                            message.uid === senderDetails.uid
+                              ? 'primary.main'
+                              : 'grey.300',
+                          color:
+                            message.uid === senderDetails.uid
+                              ? 'white'
+                              : 'black',
+                          maxWidth: '60%',
+                        }}
+                      >
+                        <p>{message.text}</p>
+                      </Box>
+                      {message.uid === senderDetails.uid && (
+                        <Avatar src={message.photo} />
+                      )}
                     </Stack>
-                  </Box>
-                ))}
+                  ))
+                ) : (
+                  <p>No data found.</p>
+                )}
+                <div ref={messagesEndRef} />{' '}
+                {/* Invisible element to scroll into view */}
               </Box>
-
-              {/* Input text field and send button */}
+              {/* ###### */}
               <Stack direction="row" spacing={2} alignItems="center">
                 <TextField
+                  value={message}
                   fullWidth
+                  onChange={handleChange}
                   variant="outlined"
                   size="small"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="Type a message..."
                 />
-                <Button
-                  variant="contained"
+                <IconButton
                   color="primary"
-                  onClick={handleSendMessage}
+                  onClick={() => sendMessage(selectedUserId)}
+                  sx={{
+                    width: '80px',
+                    height: '40px',
+                    borderRadius: '8px',
+                    backgroundColor: 'primary.main',
+                    '&:hover': {
+                      backgroundColor: 'primary.dark',
+                    },
+                  }}
                 >
-                  Send
-                </Button>
+                  <SendIcon sx={{ fontSize: 24, color: 'white' }} />{' '}
+                </IconButton>
               </Stack>
             </>
           ) : (

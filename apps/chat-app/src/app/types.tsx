@@ -14,8 +14,12 @@ export type UserDetails2 = {
   token: string;
 };
 
-export type Message = {
-  sender: string;
-  content: string;
-  timestamp: string;
+export type Messages = {
+  displayName: string;
+  email: string;
+  photo: string;
+  text: string;
+  timestamp: any; // You can replace `any` with `Timestamp` if using Firebase's timestamp type
+  token: string;
+  uid: string;
 };
