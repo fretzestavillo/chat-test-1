@@ -20,6 +20,7 @@ import {
   IconButton,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
+import Groups2Icon from '@mui/icons-material/Groups2';
 import { Messages, UserDetails2 } from './types';
 import { useEffect, useRef, useState } from 'react';
 
@@ -214,8 +215,21 @@ export function Home() {
           ) : (
             <p>No users found.</p>
           )}
+
+          <Stack
+            style={{ cursor: 'pointer' }}
+            direction="row"
+            spacing={2}
+            alignItems="center"
+          >
+            <div>
+              <IconButton color="primary">
+                <Groups2Icon sx={{ fontSize: 30 }} />
+              </IconButton>
+            </div>
+            <p>Group Chat</p>
+          </Stack>
         </Box>
-        {/* right component */}
 
         <Box
           sx={{
@@ -291,14 +305,17 @@ export function Home() {
                   <p>No data found.</p>
                 )}
                 <div ref={messagesEndRef} />{' '}
-                {/* Invisible element to scroll into view */}
               </Box>
-              {/* ###### */}
               <Stack direction="row" spacing={2} alignItems="center">
                 <TextField
                   value={message}
                   fullWidth
                   onChange={handleChange}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      sendMessage(selectedUserId);
+                    }
+                  }}
                   variant="outlined"
                   size="small"
                   placeholder="Type a message..."
