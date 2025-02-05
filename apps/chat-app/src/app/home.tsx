@@ -34,6 +34,12 @@ export function Home() {
   const [usersList, setUsersList] = useState<UserDetails2[]>([]);
   const [message, setMessage] = useState('');
   const [selectedUserId, setSelectedUser] = useState<string | null>(null);
+  const [selectedDisplayName, setselectedDisplayName] = useState<
+    string | null | undefined
+  >(null);
+  const [selectedPhoto, setselectedPhoto] = useState<string | null | undefined>(
+    null
+  );
   const [senderId, setSenderID] = useState<string | null>(null);
   const [messages, setMessages] = useState<Messages[]>([]); // State to store messages
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -117,7 +123,13 @@ export function Home() {
     return () => unsubscribe();
   }, []);
 
-  function changeState(userId: any) {
+  function changeState(
+    userId: any,
+    receiverName: string | null | undefined,
+    receiverPhoto: string | null | undefined
+  ) {
+    setselectedPhoto(receiverPhoto);
+    setselectedDisplayName(receiverName);
     setSelectedUser(userId);
     setSenderID(senderDetails.uid);
   }
@@ -188,7 +200,9 @@ export function Home() {
             usersList.map((user) => (
               <div
                 style={{ cursor: 'pointer', marginBottom: '10px' }}
-                onClick={() => changeState(user.uid)}
+                onClick={() =>
+                  changeState(user.uid, user.displayName, user.photo)
+                }
                 key={user.uid}
               >
                 <Stack direction="row" spacing={2} alignItems="center">
@@ -215,7 +229,14 @@ export function Home() {
         >
           {selectedUserId ? (
             <>
-              <h2>Chat with {selectedUserId}</h2>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Avatar
+                  src={selectedPhoto ?? undefined}
+                  sx={{ width: 32, height: 32 }} // Smaller size
+                />
+                <h2>{selectedDisplayName}</h2>
+              </Stack>
+
               <Box
                 sx={{
                   overflowY: 'auto',
